@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+node_modules/
+*.png
+prototypes/
+test_api.py
+test_ncm.py

@@ -1,0 +1,1679 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>氛围音乐 // 像素终端</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f0d;
+      --bg-deep: #050806;
+      --bg-card: #0d1a12;
+      --ink: #d7ffe8;
+      --muted: #6faa8a;
+      --dim: #2e4a39;
+      --green: #7dffb2;
+      --green-glow: rgba(125,255,178,.4);
+      --cyan: #6fd6ff;
+      --amber: #ffd36e;
+      --red: #ff6f7f;
+      --line: #1e3d2e;
+      --line-active: #3c8f62;
+      --line-soft: rgba(125,255,178,.12);
+      --cell: 4px;
+      --radius: 0px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+      color: var(--ink);
+      font-family: "Pixelify Sans", "LXGW WenKai Mono", "Noto Sans Mono CJK SC", "Microsoft YaHei UI", monospace;
+      image-rendering: pixelated;
+      -webkit-font-smoothing: none;
+      user-select: none;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 100;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0,0,0,.12) 2px,
+        rgba(0,0,0,.12) 4px
+      );
+    }
+
+    body::after {
+      content: "";
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 99;
+      background:
+        radial-gradient(ellipse 120% 80% at 50% 50%, rgba(125,255,178,.015) 0%, transparent 70%),
+        radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.5) 0%, transparent 50%);
+    }
+
+    button, input { font: inherit; letter-spacing: 0; }
+
+    .desktop {
+      width: 100vw; height: 100vh;
+      min-width: 1024px; min-height: 680px;
+      padding: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .window {
+      width: 100%; height: 100%;
+      display: grid;
+      grid-template-rows: 36px 280px minmax(0, 1fr) 26px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      box-shadow:
+        0 0 0 1px rgba(125,255,178,.04),
+        0 0 40px rgba(0,0,0,.6);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .appbar {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-deep);
+      padding: 0 14px;
+      font-size: 10px;
+      letter-spacing: 1px;
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      color: var(--green);
+      font-size: 11px;
+      font-family: "Press Start 2P", monospace;
+      text-shadow: 0 0 6px var(--green-glow);
+    }
+
+    .pixel-logo {
+      width: 14px; height: 14px;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green-glow), 2px 0 0 var(--green), -2px 0 0 var(--green), 0 2px 0 var(--green), 0 -2px 0 var(--green);
+      clip-path: polygon(
+        25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%
+      );
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+    @keyframes logoPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .7; }
+    }
+
+    .top-actions { display: flex; align-items: center; gap: 8px; font-size: 9px; }
+
+    .chip, .key, .tab {
+      height: 22px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--line-active);
+      color: var(--muted); background: transparent;
+      padding: 0 8px;
+      font-size: 9px;
+      white-space: nowrap; cursor: pointer;
+      transition: all .15s steps(3);
+    }
+    .chip:hover, .key:hover, .tab:hover {
+      color: var(--green);
+      border-color: var(--green);
+      box-shadow: 0 0 8px rgba(125,255,178,.15);
+    }
+    .chip.on, .key.on, .tab.on {
+      background: var(--green); color: var(--bg-deep); text-shadow: none;
+      border-color: var(--green);
+    }
+
+    .win-buttons { display: flex; gap: 4px; margin-left: 8px; }
+    .win-btn {
+      width: 14px; height: 14px;
+      border: 1px solid var(--line); background: transparent;
+      display: grid; place-items: center;
+      cursor: pointer; padding: 0;
+      transition: all .1s steps(2);
+    }
+    .win-btn:hover { background: var(--green); }
+    .win-btn:hover .win-icon { background: var(--bg-deep); }
+    .win-icon { display: block; background: var(--dim); }
+    .win-icon.min { width: 6px; height: 1px; }
+    .win-icon.max { width: 6px; height: 6px; border: 1px solid var(--dim); background: transparent; }
+    .win-btn:hover .win-icon.max { border-color: var(--bg-deep); }
+    .win-icon.close { width: 6px; height: 1px; position: relative; }
+    .win-icon.close::before, .win-icon.close::after {
+      content: ""; position: absolute; width: 6px; height: 1px;
+      background: var(--dim); top: 0; left: 0;
+    }
+    .win-icon.close::before { transform: rotate(45deg); }
+    .win-icon.close::after { transform: rotate(-45deg); }
+    .win-btn:hover .win-icon.close::before,
+    .win-btn:hover .win-icon.close::after { background: var(--bg-deep); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 420px minmax(0, 1fr) 220px;
+      gap: 1px;
+      background: var(--line);
+      min-height: 0;
+    }
+
+    .panel {
+      min-width: 0; min-height: 0;
+      background: var(--bg-card);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .panel.clock-panel {
+      background: var(--bg-deep) !important;
+      border: none !important;
+      box-shadow: none !important;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .clock-panel {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: stretch;
+      position: relative;
+      z-index: 2;
+      min-height: 0;
+      height: 100%;
+    }
+
+    #clockCanvas {
+      width: 100%;
+      flex: 1;
+      display: block;
+      min-height: 0;
+    }
+
+    .date {
+      color: var(--dim);
+      font-size: 10px;
+      font-family: "Press Start 2P", monospace;
+      letter-spacing: 3px;
+      text-align: center;
+      padding: 0 0 14px 0;
+    }
+
+    .panel-head {
+      height: 28px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-deep);
+      font-size: 9px; text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: .5px;
+    }
+
+    .dot {
+      width: 6px; height: 6px;
+      display: inline-block; margin-right: 6px;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green-glow);
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+
+    .now {
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      gap: 0;
+      background: var(--bg-deep);
+    }
+
+    .sys-info {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-card);
+      font-size: 9px;
+    }
+
+    .sys-tag {
+      font-family: "Press Start 2P", monospace;
+      color: var(--dim);
+      font-size: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .now-display {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .song-info-block {
+      min-width: 0;
+    }
+
+    .info-label {
+      font-family: "Press Start 2P", monospace;
+      color: var(--dim);
+      font-size: 7px;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .song-title {
+      min-width: 0;
+      color: var(--ink);
+      font-size: 20px;
+      line-height: 1.3;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-family: "Pixelify Sans", monospace;
+      text-shadow: 0 0 10px rgba(125,255,178,.15);
+    }
+
+    .artist {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-family: "Pixelify Sans", monospace;
+    }
+
+    .lyric-line {
+      border: 1px solid var(--line-soft);
+      background: var(--bg-card);
+      padding: 10px 14px;
+      color: var(--green);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-family: "Pixelify Sans", monospace;
+      text-shadow: 0 0 6px var(--green-glow);
+    }
+
+    .controls {
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .buttons { display: flex; gap: 4px; flex-shrink: 0; }
+
+    .pixel-btn {
+      width: 36px; height: 32px;
+      border: 1px solid var(--line-active);
+      color: var(--green); background: transparent;
+      cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .12s steps(3);
+      position: relative;
+      font-family: monospace;
+    }
+    .pixel-btn::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: var(--green);
+      opacity: 0;
+      transition: opacity .12s steps(3);
+    }
+    .pixel-btn:hover {
+      border-color: var(--green);
+      box-shadow: 0 0 10px rgba(125,255,178,.2);
+    }
+    .pixel-btn:hover::before { opacity: .08; }
+    .pixel-btn.on {
+      background: var(--green); color: var(--bg-deep);
+      border-color: var(--green);
+    }
+    .pixel-btn:active {
+      transform: scale(.92);
+    }
+
+    .progress-row {
+      gap: 10px;
+    }
+
+    .time-display {
+      font-family: "Press Start 2P", monospace;
+      font-size: 9px;
+      color: var(--green);
+      white-space: nowrap;
+      min-width: 48px;
+      text-align: center;
+      text-shadow: 0 0 6px var(--green-glow);
+    }
+
+    .progress-bar-container {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .progress-bar {
+      height: 10px;
+      border: 1px solid var(--line-active);
+      background: var(--bg-deep);
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      image-rendering: pixelated;
+    }
+
+    .progress-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to right,
+        transparent 0px,
+        transparent 8px,
+        rgba(30,61,46,.5) 8px,
+        rgba(30,61,46,.5) 9px
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(
+        to bottom,
+        var(--green) 0%,
+        rgba(125,255,178,.8) 100%
+      );
+      box-shadow: 0 0 8px var(--green-glow);
+      transition: width 0.2s steps(8);
+      image-rendering: pixelated;
+    }
+
+    .volume-row {
+      gap: 10px;
+    }
+
+    .vol-label {
+      font-family: "Press Start 2P", monospace;
+      font-size: 8px;
+      color: var(--dim);
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+    }
+
+    .volume-bar-container {
+      flex: 1;
+      max-width: 200px;
+    }
+
+    .volume-bar {
+      height: 8px;
+      border: 1px solid var(--line-active);
+      background: var(--bg-deep);
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      image-rendering: pixelated;
+    }
+
+    .volume-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to right,
+        transparent 0px,
+        transparent 6px,
+        rgba(30,61,46,.5) 6px,
+        rgba(30,61,46,.5) 7px
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .volume-fill {
+      height: 100%;
+      background: linear-gradient(
+        to bottom,
+        var(--amber) 0%,
+        rgba(255,211,110,.7) 100%
+      );
+      box-shadow: 0 0 6px rgba(255,211,110,.3);
+      transition: width 0.15s steps(6);
+      image-rendering: pixelated;
+    }
+
+    .vol-value {
+      font-family: "Press Start 2P", monospace;
+      font-size: 9px;
+      color: var(--amber);
+      white-space: nowrap;
+      min-width: 24px;
+      text-align: right;
+      text-shadow: 0 0 6px rgba(255,211,110,.3);
+    }
+
+    .mini-panel { display: grid; grid-template-rows: 28px 1fr; }
+
+    .album { padding: 10px; display: grid; grid-template-rows: 1fr auto; gap: 8px; }
+
+    .pixel-art {
+      border: 1px solid var(--line-active);
+      background:
+        linear-gradient(135deg, var(--bg-deep) 25%, transparent 25%) -8px 0,
+        linear-gradient(225deg, var(--bg-deep) 25%, transparent 25%) -8px 0,
+        linear-gradient(315deg, var(--bg-deep) 25%, transparent 25%),
+        linear-gradient(45deg, var(--bg-deep) 25%, transparent 25%);
+      background-size: 16px 16px;
+      background-color: var(--bg-card);
+      display: grid; place-items: center;
+      color: var(--dim); font-size: 10px; text-align: center;
+      overflow: hidden;
+      line-height: 1.6;
+    }
+
+    .pixel-art img {
+      width: 100%; height: 100%; object-fit: cover;
+      image-rendering: pixelated;
+    }
+
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1.05fr .9fr 1fr;
+      gap: 1px;
+      background: var(--line);
+      padding: 0;
+    }
+
+    .queue-panel, .library-panel, .agent-panel {
+      display: grid;
+      grid-template-rows: 28px auto minmax(0, 1fr);
+      background: var(--bg-card);
+    }
+
+    .agent-panel { grid-template-rows: 28px minmax(0, 1fr) 34px; }
+
+    .toolbar {
+      padding: 6px 8px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    input {
+      height: 24px; min-width: 0;
+      border: 1px solid var(--line-active);
+      background: var(--bg-deep); color: var(--ink);
+      outline: none; padding: 0 8px; font-size: 10px;
+      transition: border-color .15s steps(3);
+    }
+    input::placeholder { color: var(--dim); }
+    input:focus { border-color: var(--green); box-shadow: 0 0 6px rgba(125,255,178,.12); }
+
+    .scroll {
+      min-height: 0; overflow: auto;
+      scrollbar-color: var(--line-active) var(--bg-deep);
+      scrollbar-width: thin;
+    }
+    .scroll::-webkit-scrollbar { width: 5px; }
+    .scroll::-webkit-scrollbar-track { background: var(--bg-deep); }
+    .scroll::-webkit-scrollbar-thumb { background: var(--line-active); }
+
+    .row {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 48px 44px;
+      gap: 6px; align-items: center;
+      min-height: 28px; padding: 0 8px;
+      border-bottom: 1px solid var(--line-soft);
+      color: var(--muted); font-size: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: background .12s steps(3);
+    }
+    .row:hover { background: rgba(125,255,178,.06); }
+    .row.head {
+      color: var(--dim); text-transform: uppercase;
+      min-height: 24px; font-size: 8px; cursor: default;
+    }
+    .row.head:hover { background: transparent; }
+    .row.active {
+      color: var(--green); background: rgba(125,255,178,.08);
+    }
+    .row.active::before {
+      content: "▸";
+      position: absolute;
+      left: 4px;
+      color: var(--green);
+      font-size: 8px;
+    }
+
+    .truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+    .tabs { display: flex; gap: 1px; padding: 0; border-bottom: 1px solid var(--line); }
+    .tab {
+      height: 24px; font-size: 9px; cursor: pointer;
+      border: none; border-radius: 0;
+      background: var(--bg-deep);
+      color: var(--dim);
+      flex: 1;
+      text-align: center;
+      transition: all .12s steps(3);
+    }
+    .tab:hover { color: var(--muted); }
+    .tab.on {
+      color: var(--green);
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--green);
+    }
+
+    .visualizer-container {
+      min-height: 0; overflow: hidden; position: relative;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 8px; gap: 2px;
+      background: var(--bg-deep);
+    }
+
+    .audio-bar {
+      width: 3px; min-height: 2px;
+      background: var(--green);
+      box-shadow: 0 0 4px var(--green-glow);
+      transition: height 0.08s steps(3);
+      image-rendering: pixelated;
+    }
+
+    .danmaku-container {
+      min-height: 0; overflow: hidden; position: relative;
+      padding: 0;
+      background: var(--bg-deep);
+    }
+
+    .danmaku {
+      position: absolute; left: 100%; white-space: nowrap;
+      animation: fly linear forwards;
+      color: var(--amber);
+      text-shadow: 0 0 6px rgba(255,211,110,.3);
+      font-size: 11px;
+      padding: 2px 6px;
+      pointer-events: none;
+    }
+
+    @keyframes fly {
+      from { transform: translateX(0); }
+      to { transform: translateX(calc(-100vw - 100%)); }
+    }
+
+    .chat {
+      min-height: 0; overflow: auto; padding: 8px;
+      display: flex; flex-direction: column; gap: 6px;
+      scrollbar-color: var(--line-active) var(--bg-deep);
+      scrollbar-width: thin;
+    }
+
+    .msg {
+      border: 1px solid var(--line-soft);
+      background: var(--bg-deep); padding: 6px 8px;
+      color: var(--muted); font-size: 10px; line-height: 1.55;
+    }
+    .msg.user {
+      color: var(--ink); border-color: rgba(125,255,178,.3);
+      margin-left: 20px;
+    }
+    .msg.agent {
+      border-color: rgba(111,216,255,.3);
+      margin-right: 16px;
+    }
+    .meta { color: var(--cyan); font-size: 8px; margin-bottom: 3px; font-family: "Press Start 2P", monospace; }
+
+    .agent-input {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 30px;
+      gap: 4px; padding: 4px 6px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .blink { animation: blink 1.1s steps(2, end) infinite; }
+    @keyframes blink { 50% { opacity: .3; } }
+
+    .search-results {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: var(--bg-card); border: 1px solid var(--line-active);
+      max-height: 300px; overflow-y: auto; z-index: 100;
+      box-shadow: 0 4px 16px rgba(0,0,0,.6);
+    }
+    .search-results .row { font-size: 10px; min-height: 26px; }
+    .search-results .row:hover { background: rgba(125,255,178,.1); }
+
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--green); font-size: 10px; padding: 16px;
+    }
+    .loading::after {
+      content: ""; width: 10px; height: 10px;
+      border: 1px solid var(--line); border-top-color: var(--green);
+      animation: spin 0.8s linear infinite;
+      margin-left: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .no-result {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--dim); font-size: 10px; padding: 16px;
+    }
+
+    .toast {
+      position: fixed; top: 50px; right: 16px;
+      background: var(--bg-card); border: 1px solid var(--green);
+      color: var(--green); padding: 8px 14px; font-size: 10px;
+      z-index: 1000; box-shadow: 0 0 12px rgba(125,255,178,.2);
+      animation: fadeInOut 2.5s ease;
+      font-family: "Press Start 2P", monospace;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(-8px); }
+      15% { opacity: 1; transform: translateY(0); }
+      85% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    .statusbar {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--line);
+      background: var(--bg-deep);
+      padding: 0 12px;
+      color: var(--dim);
+      font-size: 9px;
+      font-family: "Press Start 2P", monospace;
+    }
+
+    @media (max-width: 1100px) {
+      .hero { grid-template-columns: 340px minmax(0, 1fr) 200px; }
+      .song-title { font-size: 16px; }
+      .workspace { grid-template-columns: 1fr 1fr; }
+      .agent-panel { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="desktop">
+    <div class="window">
+      <header class="appbar">
+        <div class="brand">
+          <span class="pixel-logo" aria-hidden="true"></span>
+          <span>氛围音乐</span>
+        </div>
+        <div class="top-actions">
+          <span class="chip on" id="modeChip">云端</span>
+          <span class="chip" id="crossChip">跨平台</span>
+          <span class="win-buttons" aria-hidden="true">
+            <button class="win-btn" id="btnMin"><span class="win-icon min"></span></button>
+            <button class="win-btn" id="btnMax"><span class="win-icon max"></span></button>
+            <button class="win-btn" id="btnClose"><span class="win-icon close"></span></button>
+          </span>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="panel clock-panel">
+          <div class="clock-panel">
+            <canvas id="clockCanvas"></canvas>
+            <div class="date" id="date"></div>
+          </div>
+        </div>
+
+        <div class="panel now">
+          <div class="sys-info">
+            <span class="sys-tag">STATUS:</span>
+            <span class="key" id="playState">就绪</span>
+            <span class="sys-tag">MODE:</span>
+            <span class="key" id="modeDisplay">列表循环</span>
+          </div>
+          <div class="now-display">
+            <div class="song-info-block">
+              <div class="info-label">CURRENT_TRACK</div>
+              <div class="song-title" id="songTitle">等待播放...</div>
+              <div class="artist" id="songArtist">选择歌曲开始聆听</div>
+            </div>
+            <div class="lyric-line" id="lyricLine">&gt; 等待播放...</div>
+          </div>
+          <div class="controls">
+            <div class="ctrl-row">
+              <div class="buttons">
+                <button class="pixel-btn" id="prevBtn" title="上一首">|&lt;</button>
+                <button class="pixel-btn" id="playBtn" title="播放">▶</button>
+                <button class="pixel-btn" id="nextBtn" title="下一首">&gt;|</button>
+                <button class="pixel-btn" id="modeBtn" title="列表循环">↻</button>
+              </div>
+            </div>
+            <div class="ctrl-row progress-row">
+              <span class="time-display" id="currentTime">00:00</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar">
+                  <div class="progress-fill" id="progressFill" style="width:0%"></div>
+                  <div class="progress-segments"></div>
+                </div>
+              </div>
+              <span class="time-display" id="totalTime">00:00</span>
+            </div>
+            <div class="ctrl-row volume-row">
+              <span class="vol-label">VOL</span>
+              <div class="volume-bar-container">
+                <div class="volume-bar" id="volumeBar">
+                  <div class="volume-fill" id="volumeFill" style="width:80%"></div>
+                </div>
+              </div>
+              <span class="vol-value" id="volumeValue">80</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel mini-panel">
+          <div class="panel-head">
+            <span><i class="dot"></i>专辑</span>
+            <span id="albumCacheStatus">正常</span>
+          </div>
+          <div class="album">
+            <div class="pixel-art" id="albumArt">专辑<br>封面</div>
+            <div class="lyric-line" id="albumInfo">来源：云端音乐库<br>已同步：0 首</div>
+          </div>
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="panel queue-panel">
+          <div class="panel-head">
+            <span><i class="dot"></i>播放队列</span>
+            <span id="queueCount">0 首</span>
+          </div>
+          <div class="toolbar">
+            <input id="queueFilter" placeholder="搜索歌曲...">
+            <span class="chip" id="searchBtn" style="cursor:pointer">搜索</span>
+          </div>
+          <div class="scroll" id="queueList">
+            <div class="row head">
+              <span>#</span><span>标题</span><span>来源</span><span>时长</span>
+            </div>
+            <div class="no-result" id="queueEmpty">搜索歌曲添加到播放队列</div>
+          </div>
+        </section>
+
+        <section class="panel library-panel">
+          <div class="panel-head">
+            <span><i class="dot"></i>可视化</span>
+            <span class="blink">实时</span>
+          </div>
+          <div>
+            <div class="tabs">
+              <button class="tab on" id="tabSpectrum">频谱</button>
+              <button class="tab" id="tabDanmaku">弹幕</button>
+            </div>
+          </div>
+          <div class="visualizer-container" id="spectrumView"></div>
+          <div class="danmaku-container" id="danmakuView" style="display:none"></div>
+        </section>
+
+        <section class="panel agent-panel">
+          <div class="panel-head">
+            <span><i class="dot"></i>云端助手</span>
+            <span id="syncStatus">已连接</span>
+          </div>
+          <div class="chat scroll" id="chat">
+            <div class="msg agent">
+              <div class="meta">助手 00:00</div>
+              系统就绪。输入歌曲名搜索，或告诉我你想听什么风格的音乐。
+            </div>
+          </div>
+          <div class="agent-input">
+            <input id="agentInput" placeholder="输入想听的歌、心情或指令...">
+            <button class="pixel-btn" id="sendBtn">&gt;</button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="statusLeft">音频：默认输出 | 内存：-- | CPU：--</span>
+        <span id="statusRight">v1.0.0-BETA | 桌面端就绪</span>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:52400/api";
+    let queue = [];
+    let queueIndex = -1;
+    let playMode = "list_loop";
+    let isPlaying = false;
+    let isPaused = false;
+    let volume = 80;
+    let currentSong = null;
+    let position = 0;
+    let duration = 0;
+    let statusInterval = null;
+    let audio = new Audio();
+    audio.volume = volume / 100;
+
+    audio.addEventListener("ended", () => {
+      isPlaying = false;
+      updatePlayButton();
+      playNext();
+    });
+
+    audio.addEventListener("timeupdate", () => {
+      position = audio.currentTime;
+      updateProgress();
+    });
+
+    audio.addEventListener("loadedmetadata", () => {
+      duration = audio.duration;
+      document.getElementById("totalTime").textContent = formatTime(duration);
+    });
+
+    function formatTime(s) {
+      if (!s || isNaN(s)) return "00:00";
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    }
+
+    function formatDuration(s) {
+      if (!s || isNaN(s)) return "--:--";
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return `${m}:${String(sec).padStart(2, "0")}`;
+    }
+
+    let glitchAmt = 0;
+    let glitchCdown = 0;
+
+    function renderPixelClock() {
+      const canvas = document.getElementById("clockCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const cw = Math.round(rect.width);
+      const ch = Math.round(rect.height);
+      if (cw < 20 || ch < 20) return;
+
+      if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) {
+        canvas.width = cw * dpr;
+        canvas.height = ch * dpr;
+        ctx.imageSmoothingEnabled = false;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cw, ch);
+
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, "0");
+      const m = String(now.getMinutes()).padStart(2, "0");
+      const colonOn = now.getMilliseconds() < 500;
+
+      const text = `${h}${colonOn ? ":" : " "}${m}`;
+
+      let fontSize = Math.floor(ch * 0.72);
+      if (fontSize < 12) fontSize = 12;
+
+      ctx.font = `${fontSize}px "Press Start 2P", monospace`;
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+
+      let metrics = ctx.measureText(text);
+
+      while (metrics.width > cw * 0.94 && fontSize > 16) {
+        fontSize -= 2;
+        ctx.font = `${fontSize}px "Press Start 2P", monospace`;
+        metrics = ctx.measureText(text);
+      }
+
+      glitchCdown--;
+      if (glitchCdown <= 0) {
+        if (Math.random() > 0.95) {
+          glitchAmt = (Math.random() - 0.5) * fontSize * 0.015;
+          glitchCdown = 5 + Math.floor(Math.random() * 10);
+        } else {
+          glitchAmt *= 0.6;
+        }
+      }
+
+      const ox = cw / 2 + glitchAmt;
+      const oy = ch / 2;
+
+      ctx.save();
+
+      const glowA = 0.08 + Math.random() * 0.06;
+      ctx.shadowColor = `rgba(125,255,178,${glowA})`;
+      ctx.shadowBlur = 8 + Math.random() * 4;
+      ctx.fillStyle = "#7dffb2";
+      ctx.fillText(text, ox, oy);
+
+      ctx.restore();
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+      document.getElementById("date").textContent =
+        `${months[now.getMonth()]} ${String(now.getDate()).padStart(2, "0")}, ${now.getFullYear()}`;
+    }
+
+    function updateProgress() {
+      if (duration > 0) {
+        const pct = (position / duration) * 100;
+        document.getElementById("progressFill").style.width = pct + "%";
+      }
+      document.getElementById("currentTime").textContent = formatTime(position);
+    }
+
+    function updatePlayButton() {
+      const btn = document.getElementById("playBtn");
+      const state = document.getElementById("playState");
+      if (isPlaying && !isPaused) {
+        btn.textContent = "||";
+        btn.classList.add("on");
+        state.textContent = "播放中";
+        state.classList.add("on");
+      } else {
+        btn.textContent = "▶";
+        btn.classList.remove("on");
+        state.textContent = isPaused ? "已暂停" : "就绪";
+        state.classList.toggle("on", isPaused);
+      }
+    }
+
+    let queueFilterText = "";
+
+    function updateQueueUI() {
+      const container = document.getElementById("queueList");
+      const countEl = document.getElementById("queueCount");
+      const filtered = queueFilterText
+        ? queue.filter(s => (s.title + s.artist).toLowerCase().includes(queueFilterText.toLowerCase()))
+        : queue;
+      countEl.textContent = filtered.length + " / " + queue.length + " 首";
+      let html = `<div class="row head"><span>#</span><span>标题</span><span>来源</span><span>时长</span></div>`;
+      if (filtered.length === 0) {
+        html += `<div class="no-result">${queue.length === 0 ? "搜索歌曲添加到播放队列" : "无匹配结果"}</div>`;
+      }
+      filtered.forEach((s) => {
+        const i = queue.indexOf(s);
+        const active = i === queueIndex ? " active" : "";
+        html += `<div class="row${active}" data-index="${i}">
+          <span>${String(i + 1).padStart(2, "0")}</span>
+          <span class="truncate">${s.title} - ${s.artist}</span>
+          <span>${s.source || "云端"}</span>
+          <span>${formatDuration(s.duration)}</span>
+        </div>`;
+      });
+      container.innerHTML = html;
+      container.querySelectorAll(".row:not(.head)").forEach(row => {
+        const idx = parseInt(row.dataset.index);
+        row.addEventListener("dblclick", () => { playQueueItem(idx); });
+        row.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          showContextMenu(e.clientX, e.clientY, idx);
+        });
+      });
+    }
+
+    async function playQueueItem(index) {
+      if (index < 0 || index >= queue.length) return;
+      queueIndex = index;
+      const song = queue[index];
+      currentSong = song;
+      document.getElementById("songTitle").textContent = song.title;
+      document.getElementById("songArtist").textContent =
+        `${song.artist} / ${song.album || ""} / ${song.source || "云端"}`;
+      try {
+        const res = await fetch(`${API}/song_url`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({id: song.id})
+        });
+        const data = await res.json();
+        if (data.code === 200 && data.url) {
+          audio.src = data.url;
+          audio.play().catch(() => {});
+          isPlaying = true;
+          isPaused = false;
+          position = 0;
+          duration = song.duration || 0;
+          updatePlayButton();
+          updateQueueUI();
+          showToast(`正在播放: ${song.title}`);
+          fetchLyric(song.id);
+          fetchCover(song.id);
+          fetchDanmakuPool(song.id);
+        } else {
+          showToast(data.msg || "无法获取播放链接");
+        }
+      } catch (e) {
+        showToast("播放失败: " + e.message);
+      }
+    }
+
+    async function fetchCover(songId) {
+      try {
+        const res = await fetch(`${API}/song_detail`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({id: songId})
+        });
+        const data = await res.json();
+        if (data.code === 200 && data.cover) {
+          const artEl = document.getElementById("albumArt");
+          artEl.innerHTML = `<img src="${data.cover}?param=200y200" alt="封面">`;
+        }
+      } catch (e) {}
+    }
+
+    async function fetchLyric(songId) {
+      try {
+        const res = await fetch(`${API}/lyric`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({id: songId})
+        });
+        const data = await res.json();
+        if (data.code === 200 && data.lyric) {
+          parseAndDisplayLyric(data.lyric);
+        }
+      } catch (e) {}
+    }
+
+    let lyricLines = [];
+    function parseAndDisplayLyric(lrcText) {
+      lyricLines = [];
+      const lines = lrcText.split("\n");
+      for (const line of lines) {
+        const match = line.match(/\[(\d{2}):(\d{2})\.?(\d{0,3})\](.*)/);
+        if (match) {
+          const time = parseInt(match[1]) * 60 + parseInt(match[2]) + parseInt(match[3] || "0") / 1000;
+          const text = match[4].trim();
+          if (text) lyricLines.push({time, text});
+        }
+      }
+    }
+
+    function updateLyric() {
+      if (!lyricLines.length) return;
+      let current = lyricLines[0];
+      for (const l of lyricLines) {
+        if (l.time <= position) current = l;
+        else break;
+      }
+      document.getElementById("lyricLine").textContent = "> " + current.text;
+    }
+
+    function playNext() {
+      if (queue.length === 0) return;
+      let nextIdx;
+      if (playMode === "single_loop") {
+        nextIdx = queueIndex;
+      } else if (playMode === "shuffle") {
+        nextIdx = Math.floor(Math.random() * queue.length);
+      } else {
+        nextIdx = (queueIndex + 1) % queue.length;
+      }
+      playQueueItem(nextIdx);
+    }
+
+    function playPrev() {
+      if (queue.length === 0) return;
+      let prevIdx;
+      if (playMode === "single_loop") {
+        prevIdx = queueIndex;
+      } else {
+        prevIdx = (queueIndex - 1 + queue.length) % queue.length;
+      }
+      playQueueItem(prevIdx);
+    }
+
+    function showToast(msg) {
+      const existing = document.querySelector(".toast");
+      if (existing) existing.remove();
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
+    }
+
+    document.getElementById("playBtn").addEventListener("click", () => {
+      initAudioAnalyser();
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+      if (isPlaying && !isPaused) {
+        audio.pause();
+        isPaused = true;
+      } else if (isPaused) {
+        audio.play().catch(() => {});
+        isPaused = false;
+      } else if (queue.length > 0) {
+        playQueueItem(queueIndex >= 0 ? queueIndex : 0);
+        return;
+      }
+      updatePlayButton();
+    });
+
+    document.getElementById("prevBtn").addEventListener("click", playPrev);
+    document.getElementById("nextBtn").addEventListener("click", playNext);
+
+    const modes = [
+      {icon: "↻", label: "列表循环", mode: "list_loop"},
+      {icon: "⟳", label: "单曲循环", mode: "single_loop"},
+      {icon: "⇄", label: "随机播放", mode: "shuffle"},
+    ];
+    let modeIndex = 0;
+    document.getElementById("modeBtn").addEventListener("click", () => {
+      modeIndex = (modeIndex + 1) % modes.length;
+      const m = modes[modeIndex];
+      playMode = m.mode;
+      const btn = document.getElementById("modeBtn");
+      btn.textContent = m.icon;
+      btn.title = m.label;
+      btn.classList.toggle("on", modeIndex !== 0);
+      document.getElementById("modeDisplay").textContent = m.label;
+      showToast(m.label);
+    });
+
+    function makeDraggable(barEl, fillEl, onValue) {
+      let dragging = false;
+      function calc(e) {
+        const rect = barEl.getBoundingClientRect();
+        return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      }
+      barEl.addEventListener("mousedown", (e) => {
+        dragging = true;
+        onValue(calc(e));
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        onValue(calc(e));
+      });
+      document.addEventListener("mouseup", () => { dragging = false; });
+    }
+
+    makeDraggable(
+      document.getElementById("progressBar"),
+      document.getElementById("progressFill"),
+      (pct) => {
+        if (!duration) return;
+        audio.currentTime = pct * duration;
+      }
+    );
+
+    makeDraggable(
+      document.getElementById("volumeBar"),
+      document.getElementById("volumeFill"),
+      (pct) => {
+        volume = Math.round(pct * 100);
+        audio.volume = volume / 100;
+        document.getElementById("volumeFill").style.width = volume + "%";
+        document.getElementById("volumeValue").textContent = volume;
+      }
+    );
+
+    document.getElementById("tabSpectrum").addEventListener("click", () => {
+      document.getElementById("spectrumView").style.display = "flex";
+      document.getElementById("danmakuView").style.display = "none";
+      document.getElementById("tabSpectrum").classList.add("on");
+      document.getElementById("tabDanmaku").classList.remove("on");
+    });
+
+    document.getElementById("tabDanmaku").addEventListener("click", () => {
+      document.getElementById("spectrumView").style.display = "none";
+      document.getElementById("danmakuView").style.display = "block";
+      document.getElementById("tabDanmaku").classList.add("on");
+      document.getElementById("tabSpectrum").classList.remove("on");
+      if (currentSong && currentSong.id) fetchDanmakuPool(currentSong.id);
+    });
+
+    let audioCtx = null;
+    let analyser = null;
+    let audioSource = null;
+    let freqData = null;
+    let realAudioData = false;
+
+    function initAudioAnalyser() {
+      if (audioCtx) return;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.75;
+        audioSource = audioCtx.createMediaElementSource(audio);
+        audioSource.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+      } catch (e) {
+        audioCtx = null;
+        analyser = null;
+      }
+    }
+
+    function initSpectrum() {
+      const container = document.getElementById("spectrumView");
+      const barCount = 48;
+      for (let i = 0; i < barCount; i++) {
+        const bar = document.createElement("div");
+        bar.className = "audio-bar";
+        bar.style.height = "2px";
+        container.appendChild(bar);
+      }
+    }
+
+    let zeroFrameCount = 0;
+
+    function animateSpectrum() {
+      const bars = document.querySelectorAll(".audio-bar");
+      if (audioCtx && analyser && isPlaying && !isPaused) {
+        analyser.getByteFrequencyData(freqData);
+        let sum = 0;
+        for (let i = 0; i < freqData.length; i++) sum += freqData[i];
+        if (sum > 0) {
+          realAudioData = true;
+          zeroFrameCount = 0;
+        } else {
+          zeroFrameCount++;
+          if (zeroFrameCount > 30) realAudioData = false;
+        }
+        if (realAudioData) {
+          const step = Math.max(1, Math.floor(freqData.length / bars.length));
+          bars.forEach((bar, i) => {
+            const val = freqData[Math.min(i * step, freqData.length - 1)] || 0;
+            const h = Math.max(2, (val / 255) * 120);
+            bar.style.height = h + "px";
+            bar.style.opacity = val > 10 ? "1" : "0.3";
+          });
+          requestAnimationFrame(animateSpectrum);
+          return;
+        }
+      }
+      bars.forEach((bar, i) => {
+        const freq = i / bars.length;
+        const base = isPlaying && !isPaused ? 8 : 2;
+        const low = isPlaying && !isPaused ? 40 * (1 - freq) : 0;
+        const mid = isPlaying && !isPaused ? 20 * (1 - Math.abs(freq - 0.3)) : 0;
+        const noise = Math.random() * (isPlaying && !isPaused ? 12 : 2);
+        const h = base + low + mid + noise;
+        bar.style.height = Math.max(2, Math.min(120, h)) + "px";
+        bar.style.opacity = isPlaying && !isPaused ? "1" : "0.3";
+      });
+      requestAnimationFrame(animateSpectrum);
+    }
+
+    let danmakuPool = [];
+    let danmakuUsed = new Set();
+    let danmakuInterval = null;
+    let danmakuSongId = null;
+
+    const aiTemplates = [
+      (s) => `♪ ${s.title} ♪`,
+      (s) => `${s.artist} 的经典之作`,
+      (s) => `正在循环 ${s.title}`,
+      (s) => `${s.artist} 永远的神`,
+      (s) => `深夜听 ${s.title}`,
+      (s) => `这首歌太上头了`,
+      (s) => `${s.artist} 的声音太好听了`,
+      (s) => `单曲循环停不下来`,
+      (s) => `${s.title} 前排占座`,
+      (s) => `氛围感拉满`,
+      (s) => `像素终端 yyds`,
+      (s) => `赛博朋克听歌体验`,
+      (s) => `${s.artist} 粉丝报到`,
+      (s) => `这首歌值得 N 刷`,
+      (s) => `Hi-Res 音质绝了`,
+    ];
+
+    function generateAiDanmaku() {
+      if (!currentSong) return null;
+      const tpl = aiTemplates[Math.floor(Math.random() * aiTemplates.length)];
+      return { text: tpl(currentSong), user: "AI", liked: 0 };
+    }
+
+    async function fetchDanmakuPool(songId) {
+      if (songId === danmakuSongId && danmakuPool.length > 0) return;
+      danmakuSongId = songId;
+      danmakuUsed.clear();
+      danmakuPool = [];
+      try {
+        const res = await fetch(`${API}/danmaku`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({id: songId})
+        });
+        const data = await res.json();
+        if (data.code === 200 && data.comments && data.comments.length > 0) {
+          danmakuPool = data.comments.map(c => ({
+            text: c.text,
+            user: c.user || "",
+            liked: c.liked || 0
+          }));
+        }
+      } catch (e) {}
+    }
+
+    function getNextDanmaku() {
+      const unused = danmakuPool.filter(c => !danmakuUsed.has(c.text));
+      let item;
+      if (unused.length > 0) {
+        item = unused[Math.floor(Math.random() * unused.length)];
+        danmakuUsed.add(item.text);
+      } else if (danmakuPool.length > 0) {
+        danmakuUsed.clear();
+        item = danmakuPool[Math.floor(Math.random() * danmakuPool.length)];
+        danmakuUsed.add(item.text);
+      } else {
+        item = generateAiDanmaku();
+      }
+      if (Math.random() < 0.3) {
+        const ai = generateAiDanmaku();
+        if (ai && Math.random() < 0.5) item = ai;
+      }
+      return item;
+    }
+
+    function startDanmaku() {
+      if (danmakuInterval) return;
+      const container = document.getElementById("danmakuView");
+      danmakuInterval = setInterval(() => {
+        if (!isPlaying) return;
+        const item = getNextDanmaku();
+        if (!item) return;
+        const d = document.createElement("span");
+        d.className = "danmaku";
+        const prefix = item.user ? `${item.user}：` : "";
+        d.textContent = prefix + item.text;
+        d.style.top = (Math.random() * 75 + 5) + "%";
+        d.style.animationDuration = (5 + Math.random() * 4) + "s";
+        const r = Math.random();
+        if (r > 0.7) {
+          d.style.color = "var(--cyan)";
+          d.style.textShadow = "0 0 8px rgba(111,216,255,.45)";
+        } else if (r > 0.5 && item.liked > 10000) {
+          d.style.color = "var(--red)";
+          d.style.textShadow = "0 0 8px rgba(255,111,127,.45)";
+        }
+        container.appendChild(d);
+        setTimeout(() => d.remove(), 10000);
+      }, 1800);
+    }
+
+    function appendMessage(kind, text) {
+      const chat = document.getElementById("chat");
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const div = document.createElement("div");
+      div.className = `msg ${kind}`;
+      div.innerHTML = `<div class="meta">${kind === "user" ? "我" : "助手"} ${timeStr}</div>${text}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function handleAgentCommand(text) {
+      appendMessage("user", text);
+      const keyword = text.trim();
+      if (!keyword) return;
+
+      const lowerText = keyword.toLowerCase();
+      if (lowerText === "暂停" || lowerText === "停止") {
+        audio.pause();
+        isPaused = true;
+        updatePlayButton();
+        appendMessage("agent", "已暂停播放。");
+        return;
+      }
+      if (lowerText === "播放" || lowerText === "继续") {
+        if (isPaused) {
+          audio.play().catch(() => {});
+          isPaused = false;
+          updatePlayButton();
+          appendMessage("agent", "继续播放。");
+        } else if (queue.length > 0) {
+          playQueueItem(queueIndex >= 0 ? queueIndex : 0);
+          appendMessage("agent", "开始播放。");
+        }
+        return;
+      }
+      if (lowerText === "下一首") {
+        playNext();
+        appendMessage("agent", "已切换到下一首。");
+        return;
+      }
+      if (lowerText === "上一首") {
+        playPrev();
+        appendMessage("agent", "已切换到上一首。");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/search`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({keyword: keyword, limit: 10})
+        });
+        const data = await res.json();
+        if (data.code === 200 && data.songs && data.songs.length > 0) {
+          const songs = data.songs;
+          queue = songs;
+          queueIndex = -1;
+          updateQueueUI();
+          document.getElementById("albumInfo").innerHTML =
+            `来源：云端音乐库<br>已同步：${songs.length} 首`;
+          let reply = `找到 ${songs.length} 首相关歌曲：\n`;
+          songs.slice(0, 5).forEach((s, i) => {
+            reply += `${i + 1}. ${s.title} - ${s.artist}\n`;
+          });
+          if (songs.length > 5) reply += `...还有 ${songs.length - 5} 首`;
+          appendMessage("agent", reply.replace(/\n/g, "<br>"));
+          playQueueItem(0);
+        } else {
+          appendMessage("agent", "未找到相关歌曲，换个关键词试试？");
+        }
+      } catch (e) {
+        appendMessage("agent", "搜索失败，请检查网络连接。");
+      }
+    }
+
+    document.getElementById("sendBtn").addEventListener("click", () => {
+      const input = document.getElementById("agentInput");
+      const val = input.value.trim();
+      if (!val) return;
+      input.value = "";
+      handleAgentCommand(val);
+    });
+
+    document.getElementById("agentInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("sendBtn").click();
+    });
+
+    document.getElementById("searchBtn").addEventListener("click", () => {
+      const input = document.getElementById("queueFilter");
+      const val = input.value.trim();
+      if (!val) { queueFilterText = ""; updateQueueUI(); return; }
+      if (queue.length > 0) {
+        queueFilterText = val;
+        updateQueueUI();
+      } else {
+        handleAgentCommand(val);
+      }
+    });
+
+    document.getElementById("queueFilter").addEventListener("input", (e) => {
+      const val = e.target.value.trim();
+      queueFilterText = val;
+      updateQueueUI();
+    });
+
+    document.getElementById("queueFilter").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const val = e.target.value.trim();
+        if (queue.length > 0 && val) {
+          queueFilterText = val;
+          updateQueueUI();
+        } else if (val) {
+          handleAgentCommand(val);
+        }
+      }
+    });
+
+    document.getElementById("btnClose").addEventListener("click", () => {
+      window.close();
+    });
+
+    function showContextMenu(x, y, idx) {
+      let menu = document.getElementById("ctxMenu");
+      if (menu) menu.remove();
+      menu = document.createElement("div");
+      menu.id = "ctxMenu";
+      menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:200;background:var(--bg-card);border:1px solid var(--line-active);padding:4px 0;min-width:120px;font-size:10px;font-family:"Pixelify Sans",monospace;`;
+      const items = [
+        { label: "▶ 播放", action: () => playQueueItem(idx) },
+        { label: "✕ 从队列移除", action: () => { queue.splice(idx, 1); if (queueIndex === idx) { audio.pause(); queueIndex = -1; } else if (queueIndex > idx) { queueIndex--; } updateQueueUI(); showToast("已移除"); } },
+      ];
+      items.forEach(item => {
+        const el = document.createElement("div");
+        el.textContent = item.label;
+        el.style.cssText = "padding:6px 12px;cursor:pointer;color:var(--muted);transition:background .1s;";
+        el.addEventListener("mouseenter", () => { el.style.background = "var(--green)"; el.style.color = "var(--bg-deep)"; });
+        el.addEventListener("mouseleave", () => { el.style.background = "transparent"; el.style.color = "var(--muted)"; });
+        el.addEventListener("click", () => { item.action(); menu.remove(); });
+        menu.appendChild(el);
+      });
+      document.body.appendChild(menu);
+      setTimeout(() => {
+        document.addEventListener("click", function rm() { menu.remove(); document.removeEventListener("click", rm); });
+      }, 10);
+    }
+
+    document.getElementById("modeChip").addEventListener("click", () => {
+      document.getElementById("modeChip").classList.add("on");
+      document.getElementById("crossChip").classList.remove("on");
+      showToast("已切换到云端频道");
+    });
+
+    document.getElementById("crossChip").addEventListener("click", () => {
+      document.getElementById("crossChip").classList.add("on");
+      document.getElementById("modeChip").classList.remove("on");
+      showToast("跨平台频道开发中...");
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          document.getElementById("playBtn").click();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          if (e.shiftKey) {
+            volume = Math.min(100, volume + 5);
+            audio.volume = volume / 100;
+            document.getElementById("volumeFill").style.width = volume + "%";
+            document.getElementById("volumeValue").textContent = volume;
+          } else {
+            document.getElementById("nextBtn").click();
+          }
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          if (e.shiftKey) {
+            volume = Math.max(0, volume - 5);
+            audio.volume = volume / 100;
+            document.getElementById("volumeFill").style.width = volume + "%";
+            document.getElementById("volumeValue").textContent = volume;
+          } else {
+            document.getElementById("prevBtn").click();
+          }
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          volume = Math.min(100, volume + 5);
+          audio.volume = volume / 100;
+          document.getElementById("volumeFill").style.width = volume + "%";
+          document.getElementById("volumeValue").textContent = volume;
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          volume = Math.max(0, volume - 5);
+          audio.volume = volume / 100;
+          document.getElementById("volumeFill").style.width = volume + "%";
+          document.getElementById("volumeValue").textContent = volume;
+          break;
+      }
+    });
+
+    async function loadTopSongs() {
+      try {
+        const res = await fetch(`${API}/top_songs`);
+        const data = await res.json();
+        if (data.code === 200 && data.songs && data.songs.length > 0) {
+          queue = data.songs;
+          queueIndex = -1;
+          updateQueueUI();
+          document.getElementById("albumInfo").innerHTML =
+            `来源：云端音乐库<br>已同步：${data.songs.length} 首`;
+        }
+      } catch (e) {}
+    }
+
+    function updateSystemStatus() {
+      const mem = (Math.random() * 4 + 10).toFixed(1);
+      const cpu = Math.floor(Math.random() * 15 + 3);
+      document.getElementById("statusLeft").textContent =
+        `音频：默认输出 | 内存：${mem}G | CPU：${cpu}%`;
+    }
+
+    function mainLoop() {
+      updateLyric();
+      requestAnimationFrame(mainLoop);
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+    setInterval(updateSystemStatus, 5000);
+    updateSystemStatus();
+
+    function clockLoop() {
+      renderPixelClock();
+      requestAnimationFrame(clockLoop);
+    }
+    clockLoop();
+
+    initSpectrum();
+    animateSpectrum();
+    startDanmaku();
+    mainLoop();
+    loadTopSongs();
+  </script>
+</body>
+</html>
