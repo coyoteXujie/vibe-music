@@ -2,6 +2,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 import threading
 import time
 import webview
@@ -10,8 +11,43 @@ from flask import Flask, jsonify, request, send_from_directory
 from music_api import MusicAPI
 from player import Player
 
-NCM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ncm-api")
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, relative_path)
+
+
+def external_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, relative_path)
+
+
+NCM_DIR = external_path("ncm-api")
 ncm_process = None
+
+
+class WindowAPI:
+    def minimize(self):
+        webview.windows()[0].minimize()
+
+    def maximize(self):
+        w = webview.windows()[0]
+        if not w.maximized:
+            w.maximize()
+        else:
+            w.restore()
+
+    def toggle_fullscreen(self):
+        webview.windows()[0].toggle_fullscreen()
+
+    def close(self):
+        webview.windows()[0].destroy()
 
 
 def find_node():
@@ -70,7 +106,7 @@ def start_ncm_api():
         print(f"[WARN] NCM API 启动失败: {e}")
         return False
 
-app = Flask(__name__, static_folder="ui", static_url_path="")
+app = Flask(__name__, static_folder=resource_path("ui"), static_url_path="")
 
 music_api = MusicAPI()
 player = Player()
@@ -78,7 +114,7 @@ player = Player()
 
 @app.route("/")
 def index():
-    return send_from_directory("ui", "index.html")
+    return send_from_directory(resource_path("ui"), "index.html")
 
 
 @app.route("/api/search", methods=["POST"])
@@ -238,8 +274,10 @@ def main():
         min_size=(1024, 680),
         resizable=True,
         frameless=True,
+        js_api=WindowAPI(),
+        text_select=False,
     )
-    webview.start()
+    webview.start(debug=False, http_server=True)
     if ncm_process:
         ncm_process.terminate()
 

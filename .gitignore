@@ -5,3 +5,6 @@ node_modules/
 prototypes/
 test_api.py
 test_ncm.py
+build/
+dist/
+*.spec.bak
