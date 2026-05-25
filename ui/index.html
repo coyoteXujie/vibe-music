@@ -1457,6 +1457,26 @@
     let danmakuUsed = new Set();
     let danmakuInterval = null;
     let danmakuSongId = null;
+    let danmakuTracks = [];
+    let danmakuQueue = [];
+    let danmakuQueueTimer = null;
+
+    function initDanmakuTracks() {
+      const container = document.getElementById("danmakuView");
+      const h = container.clientHeight || 200;
+      const trackH = 22;
+      const count = Math.max(3, Math.floor(h / trackH));
+      danmakuTracks = [];
+      for (let i = 0; i < count; i++) {
+        danmakuTracks.push({ y: i * trackH + 4, busy: false });
+      }
+    }
+
+    function getFreeTrack() {
+      const free = danmakuTracks.filter(t => !t.busy);
+      if (free.length === 0) return null;
+      return free[Math.floor(Math.random() * free.length)];
+    }
 
     const aiTemplates = [
       (s) => `♪ ${s.title} ♪`,
@@ -1521,31 +1541,49 @@
       return item;
     }
 
+    function fireDanmaku(item) {
+      if (!item) return;
+      const container = document.getElementById("danmakuView");
+      if (!container) return;
+      if (danmakuTracks.length === 0) initDanmakuTracks();
+      const track = getFreeTrack();
+      if (!track) return;
+
+      const d = document.createElement("span");
+      d.className = "danmaku";
+      const prefix = item.user ? `${item.user}：` : "";
+      d.textContent = prefix + item.text;
+      d.style.top = track.y + "px";
+      const dur = 7 + Math.random() * 5;
+      d.style.animationDuration = dur + "s";
+      const r = Math.random();
+      if (r > 0.7) {
+        d.style.color = "var(--cyan)";
+        d.style.textShadow = "0 0 8px var(--cyan-glow)";
+      } else if (r > 0.5 && item.liked > 10000) {
+        d.style.color = "var(--red)";
+        d.style.textShadow = "0 0 8px var(--red-glow)";
+      }
+      container.appendChild(d);
+      track.busy = true;
+      const releaseTime = dur * 0.35 * 1000;
+      setTimeout(() => { track.busy = false; }, releaseTime);
+      d.addEventListener("animationend", () => d.remove());
+    }
+
     function startDanmaku() {
       if (danmakuInterval) return;
-      const container = document.getElementById("danmakuView");
+      initDanmakuTracks();
       danmakuInterval = setInterval(() => {
         if (!isPlaying) return;
         const item = getNextDanmaku();
-        if (!item) return;
-        const d = document.createElement("span");
-        d.className = "danmaku";
-        const prefix = item.user ? `${item.user}：` : "";
-        d.textContent = prefix + item.text;
-        d.style.top = (Math.random() * 75 + 5) + "%";
-        const dur = 5 + Math.random() * 4;
-        d.style.animationDuration = dur + "s";
-        const r = Math.random();
-        if (r > 0.7) {
-          d.style.color = "var(--cyan)";
-          d.style.textShadow = "0 0 8px var(--cyan-glow)";
-        } else if (r > 0.5 && item.liked > 10000) {
-          d.style.color = "var(--red)";
-          d.style.textShadow = "0 0 8px var(--red-glow)";
-        }
-        container.appendChild(d);
-        d.addEventListener("animationend", () => d.remove());
-      }, 1800);
+        if (item) danmakuQueue.push(item);
+      }, 3000);
+      danmakuQueueTimer = setInterval(() => {
+        if (!isPlaying || danmakuQueue.length === 0) return;
+        const item = danmakuQueue.shift();
+        fireDanmaku(item);
+      }, 1500);
     }
 
     function appendMessage(kind, text) {
