@@ -5,20 +5,11 @@ import sys
 block_cipher = None
 
 BASE = os.path.abspath('.')
-CONDA = 'D:\\miniconda3\\envs\\vibe-music'
-CONDA_BIN = os.path.join(CONDA, 'Library', 'bin')
 
 a = Analysis(
     ['app.py'],
     pathex=[BASE],
-    binaries=[
-        (os.path.join(CONDA_BIN, 'libssl-3-x64.dll'), '.'),
-        (os.path.join(CONDA_BIN, 'libcrypto-3-x64.dll'), '.'),
-        (os.path.join(CONDA_BIN, 'liblzma.dll'), '.'),
-        (os.path.join(CONDA_BIN, 'libbz2.dll'), '.'),
-        (os.path.join(CONDA_BIN, 'ffi.dll'), '.'),
-        (os.path.join(CONDA_BIN, 'libexpat.dll'), '.'),
-    ],
+    binaries=[],
     datas=[
         (os.path.join(BASE, 'ui', 'index.html'), 'ui'),
         (os.path.join(BASE, 'ui', 'fonts'), 'ui/fonts'),
@@ -28,7 +19,7 @@ a = Analysis(
         'flask',
         'webview',
         'requests',
-        'webview.platforms.winforms',
+        'webview.platforms.gtk',
         'musicapi',
         'musicapi.musicapi',
         'musicapi.app',
@@ -43,8 +34,6 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
 )

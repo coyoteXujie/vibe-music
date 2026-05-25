@@ -1,3 +1,4 @@
+import random
 import subprocess
 import threading
 import time
@@ -234,6 +235,3 @@ class Player:
     def set_play_mode(self, mode):
         if mode in ("list_loop", "single_loop", "shuffle"):
             self.play_mode = mode
-
-
-import random

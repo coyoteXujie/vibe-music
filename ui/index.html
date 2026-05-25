@@ -628,18 +628,16 @@
 
     .visualizer-container {
       flex: 1; min-height: 0;
-      display: flex; align-items: flex-end; justify-content: center;
-      padding: 12px; gap: 2px;
+      display: flex; align-items: stretch; justify-content: stretch;
+      padding: 0; gap: 0;
       background: var(--surface-lowest);
       overflow: hidden;
+      position: relative;
     }
 
-    .audio-bar {
-      width: 4px; min-height: 2px;
-      background: var(--primary);
-      box-shadow: 0 0 4px var(--primary-glow-soft);
-      transition: height .08s steps(3);
-      border-radius: 1px 1px 0 0;
+    .visualizer-container canvas {
+      width: 100%; height: 100%;
+      display: block;
     }
 
     .danmaku-container {
@@ -842,7 +840,13 @@
               <div class="song-title" id="songTitle">等待播放...</div>
               <div class="song-artist" id="songArtist">选择歌曲开始聆听</div>
             </div>
-            <div class="lyric-line" id="lyricLine">&gt; 等待播放...</div>
+            <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:14px">
+              <div style="width:64px;height:64px;flex-shrink:0;border-radius:4px;border:1px solid var(--outline-variant);background:var(--surface-lowest);overflow:hidden;display:grid;place-items:center">
+                <img id="albumArt" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
+                <span id="albumArtPlaceholder" style="font-size:20px;color:var(--outline-variant)">♫</span>
+              </div>
+              <div class="lyric-line" id="lyricLine" style="flex:1;min-width:0">&gt; 等待播放...</div>
+            </div>
             <div class="controls-row">
               <button class="ctrl-btn" id="prevBtn" title="上一首">|&lt;</button>
               <button class="ctrl-btn" id="playBtn" title="播放">▶</button>
@@ -902,7 +906,7 @@
               <button class="viz-tab on" id="tabSpectrum">频谱</button>
               <button class="viz-tab" id="tabDanmaku">弹幕</button>
             </div>
-            <div class="visualizer-container" id="spectrumView"></div>
+            <div class="visualizer-container" id="spectrumView"><canvas id="spectrumCanvas"></canvas></div>
             <div class="danmaku-container" id="danmakuView" style="display:none"></div>
           </div>
 
@@ -963,6 +967,14 @@
       isPlaying = false;
       updatePlayButton();
       playNext();
+    });
+
+    audio.addEventListener("error", () => {
+      isPlaying = false;
+      isPaused = false;
+      updatePlayButton();
+      showToast("播放失败，尝试下一首");
+      setTimeout(() => playNext(), 1000);
     });
 
     audio.addEventListener("timeupdate", () => {
@@ -1053,7 +1065,7 @@
       container.innerHTML = html;
       container.querySelectorAll(".row:not(.head)").forEach(row => {
         const idx = parseInt(row.dataset.index);
-        row.addEventListener("dblclick", () => { playQueueItem(idx); });
+        row.addEventListener("click", () => { playQueueItem(idx); });
         row.addEventListener("contextmenu", (e) => {
           e.preventDefault();
           showContextMenu(e.clientX, e.clientY, idx);
@@ -1072,11 +1084,12 @@
       try {
         const res = await fetch(`${API}/song_url`, {
           method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({id: song.id})
+          body: JSON.stringify({id: song.id, source: song.source})
         });
         const data = await res.json();
         if (data.code === 200 && data.url) {
-          audio.src = data.url;
+          const proxyUrl = `${API}/proxy_audio?url=${encodeURIComponent(data.url)}`;
+          audio.src = proxyUrl;
           audio.play().catch(() => {});
           isPlaying = true;
           isPaused = false;
@@ -1085,7 +1098,8 @@
           updatePlayButton();
           updateQueueUI();
           showToast(`正在播放: ${song.title}`);
-          fetchLyric(song.id);
+          fetchLyric(song.id, song.source);
+          fetchCover(song.id, song.source);
           fetchDanmakuPool(song.id);
         } else {
           showToast(data.msg || "无法获取播放链接");
@@ -1095,15 +1109,36 @@
       }
     }
 
-    async function fetchLyric(songId) {
+    async function fetchLyric(songId, source) {
       try {
         const res = await fetch(`${API}/lyric`, {
           method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({id: songId})
+          body: JSON.stringify({id: songId, source: source})
         });
         const data = await res.json();
         if (data.code === 200 && data.lyric) {
           parseAndDisplayLyric(data.lyric);
+        }
+      } catch (e) {}
+    }
+
+    async function fetchCover(songId, source) {
+      try {
+        const res = await fetch(`${API}/song_detail`, {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({id: songId, source: source})
+        });
+        const data = await res.json();
+        if (data.code === 200 && data.cover) {
+          const img = document.getElementById("albumArt");
+          const ph = document.getElementById("albumArtPlaceholder");
+          img.src = data.cover + "?param=128y128";
+          img.style.display = "block";
+          ph.style.display = "none";
+          img.onerror = () => {
+            img.style.display = "none";
+            ph.style.display = "block";
+          };
         }
       } catch (e) {}
     }
@@ -1134,6 +1169,13 @@
 
     function playNext() {
       if (queue.length === 0) return;
+      if (queue.length === 1 && queueIndex === 0) {
+        if (playMode === "single_loop") {
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+          return;
+        }
+      }
       let nextIdx;
       if (playMode === "single_loop") {
         nextIdx = queueIndex;
@@ -1226,6 +1268,8 @@
       (pct) => {
         if (!duration) return;
         audio.currentTime = pct * duration;
+        document.getElementById("progressFill").style.width = (pct * 100) + "%";
+        document.getElementById("progressHead").style.left = (pct * 100) + "%";
       }
     );
 
@@ -1245,6 +1289,7 @@
       document.getElementById("danmakuView").style.display = "none";
       document.getElementById("tabSpectrum").classList.add("on");
       document.getElementById("tabDanmaku").classList.remove("on");
+      setTimeout(resizeSpecCanvas, 50);
     });
 
     document.getElementById("tabDanmaku").addEventListener("click", () => {
@@ -1260,14 +1305,23 @@
     let audioSource = null;
     let freqData = null;
     let realAudioData = false;
+    let specCanvas = null;
+    let specCtx = null;
+    let specW = 0, specH = 0;
+    let smoothBars = [];
+    const BAR_COUNT = 64;
+    const PEAK_DECAY = 0.98;
+    let peakHolds = new Float32Array(BAR_COUNT);
 
     function initAudioAnalyser() {
       if (audioCtx) return;
       try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.75;
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.82;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -10;
         audioSource = audioCtx.createMediaElementSource(audio);
         audioSource.connect(analyser);
         analyser.connect(audioCtx.destination);
@@ -1278,21 +1332,35 @@
       }
     }
 
+    function resizeSpecCanvas() {
+      specCanvas = document.getElementById("spectrumCanvas");
+      if (!specCanvas) return;
+      specCtx = specCanvas.getContext("2d");
+      const rect = specCanvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      specCanvas.width = rect.width * dpr;
+      specCanvas.height = rect.height * dpr;
+      specCtx.scale(dpr, dpr);
+      specW = rect.width;
+      specH = rect.height;
+    }
+
     function initSpectrum() {
-      const container = document.getElementById("spectrumView");
-      const barCount = 48;
-      for (let i = 0; i < barCount; i++) {
-        const bar = document.createElement("div");
-        bar.className = "audio-bar";
-        bar.style.height = "2px";
-        container.appendChild(bar);
-      }
+      resizeSpecCanvas();
+      smoothBars = new Array(BAR_COUNT).fill(0);
+      peakHolds = new Float32Array(BAR_COUNT);
     }
 
     let zeroFrameCount = 0;
+    let simPhase = 0;
 
     function animateSpectrum() {
-      const bars = document.querySelectorAll(".audio-bar");
+      if (!specCanvas || !specCtx) { requestAnimationFrame(animateSpectrum); return; }
+      if (specW < 10 || specH < 10) { resizeSpecCanvas(); requestAnimationFrame(animateSpectrum); return; }
+
+      let rawBars = new Float32Array(BAR_COUNT);
+      let hasRealData = false;
+
       if (audioCtx && analyser && isPlaying && !isPaused) {
         analyser.getByteFrequencyData(freqData);
         let sum = 0;
@@ -1300,32 +1368,88 @@
         if (sum > 0) {
           realAudioData = true;
           zeroFrameCount = 0;
+          hasRealData = true;
         } else {
           zeroFrameCount++;
           if (zeroFrameCount > 30) realAudioData = false;
         }
-        if (realAudioData) {
-          const step = Math.max(1, Math.floor(freqData.length / bars.length));
-          bars.forEach((bar, i) => {
-            const val = freqData[Math.min(i * step, freqData.length - 1)] || 0;
-            const h = Math.max(2, (val / 255) * 120);
-            bar.style.height = h + "px";
-            bar.style.opacity = val > 10 ? "1" : "0.3";
-          });
-          requestAnimationFrame(animateSpectrum);
-          return;
+      }
+
+      if (realAudioData && hasRealData) {
+        const binCount = freqData.length;
+        for (let i = 0; i < BAR_COUNT; i++) {
+          const lo = Math.floor(i * binCount / BAR_COUNT);
+          const hi = Math.floor((i + 1) * binCount / BAR_COUNT);
+          let val = 0;
+          for (let j = lo; j < hi; j++) val += freqData[j];
+          val = val / (hi - lo) / 255;
+          rawBars[i] = val;
+        }
+      } else if (isPlaying && !isPaused) {
+        simPhase += 0.04;
+        for (let i = 0; i < BAR_COUNT; i++) {
+          const freq = i / BAR_COUNT;
+          const bass = Math.pow(Math.max(0, Math.sin(simPhase * 1.3)), 2) * (1 - freq) * 0.6;
+          const mid = Math.pow(Math.max(0, Math.sin(simPhase * 2.1 + 1.5)), 2) * Math.exp(-Math.pow((freq - 0.25) * 4, 2)) * 0.45;
+          const treble = Math.pow(Math.max(0, Math.sin(simPhase * 3.7 + 3.0)), 2) * freq * 0.25;
+          const noise = (Math.random() - 0.5) * 0.08;
+          rawBars[i] = Math.max(0, Math.min(1, 0.05 + bass + mid + treble + noise));
+        }
+      } else {
+        for (let i = 0; i < BAR_COUNT; i++) rawBars[i] = 0.005;
+      }
+
+      const pad = 4;
+      const drawW = specW - pad * 2;
+      const drawH = specH - pad * 2;
+      const barW = drawW / BAR_COUNT;
+      const gap = Math.max(1, barW * 0.15);
+      const barInner = barW - gap;
+
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const target = rawBars[i];
+        smoothBars[i] += (target - smoothBars[i]) * 0.28;
+        if (smoothBars[i] > peakHolds[i]) {
+          peakHolds[i] = smoothBars[i];
+        } else {
+          peakHolds[i] *= PEAK_DECAY;
         }
       }
-      bars.forEach((bar, i) => {
-        const freq = i / bars.length;
-        const base = isPlaying && !isPaused ? 8 : 2;
-        const low = isPlaying && !isPaused ? 40 * (1 - freq) : 0;
-        const mid = isPlaying && !isPaused ? 20 * (1 - Math.abs(freq - 0.3)) : 0;
-        const noise = Math.random() * (isPlaying && !isPaused ? 12 : 2);
-        const h = base + low + mid + noise;
-        bar.style.height = Math.max(2, Math.min(120, h)) + "px";
-        bar.style.opacity = isPlaying && !isPaused ? "1" : "0.3";
-      });
+
+      specCtx.clearRect(0, 0, specW, specH);
+
+      const primary = "#6feee1";
+      const glowSoft = "rgba(111,238,225,0.3)";
+      const glowHard = "rgba(111,238,225,0.6)";
+
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const val = smoothBars[i];
+        const h = Math.max(2, val * drawH);
+        const x = pad + i * barW + gap / 2;
+        const y = specH - pad - h;
+
+        const grad = specCtx.createLinearGradient(x, y, x, specH - pad);
+        grad.addColorStop(0, primary);
+        grad.addColorStop(0.6, "rgba(111,238,225,0.7)");
+        grad.addColorStop(1, "rgba(111,238,225,0.2)");
+
+        specCtx.fillStyle = grad;
+        specCtx.shadowColor = primary;
+        specCtx.shadowBlur = val > 0.3 ? 6 : 3;
+        specCtx.beginPath();
+        const r = Math.min(barInner / 2, 2);
+        specCtx.roundRect(x, y, barInner, h, [r, r, 0, 0]);
+        specCtx.fill();
+
+        if (peakHolds[i] > 0.08) {
+          const peakY = specH - pad - Math.max(2, peakHolds[i] * drawH) - 2;
+          specCtx.fillStyle = primary;
+          specCtx.shadowBlur = 4;
+          specCtx.fillRect(x, peakY, barInner, 2);
+        }
+      }
+
+      specCtx.shadowBlur = 0;
       requestAnimationFrame(animateSpectrum);
     }
 
@@ -1409,7 +1533,8 @@
         const prefix = item.user ? `${item.user}：` : "";
         d.textContent = prefix + item.text;
         d.style.top = (Math.random() * 75 + 5) + "%";
-        d.style.animationDuration = (5 + Math.random() * 4) + "s";
+        const dur = 5 + Math.random() * 4;
+        d.style.animationDuration = dur + "s";
         const r = Math.random();
         if (r > 0.7) {
           d.style.color = "var(--cyan)";
@@ -1419,7 +1544,7 @@
           d.style.textShadow = "0 0 8px var(--red-glow)";
         }
         container.appendChild(d);
-        setTimeout(() => d.remove(), 10000);
+        d.addEventListener("animationend", () => d.remove());
       }, 1800);
     }
 
@@ -1440,22 +1565,82 @@
       if (!keyword) return;
 
       const lowerText = keyword.toLowerCase();
-      if (lowerText === "暂停" || lowerText === "停止") {
+
+      if (/暂停|停止|停一下|pause/.test(lowerText)) {
         audio.pause(); isPaused = true; updatePlayButton();
         appendMessage("agent", "已暂停播放。"); return;
       }
-      if (lowerText === "播放" || lowerText === "继续") {
+      if (/播放|继续|开始|play|resume/.test(lowerText)) {
         if (isPaused) {
           audio.play().catch(() => {}); isPaused = false; updatePlayButton();
           appendMessage("agent", "继续播放。");
         } else if (queue.length > 0) {
           playQueueItem(queueIndex >= 0 ? queueIndex : 0);
           appendMessage("agent", "开始播放。");
+        } else {
+          appendMessage("agent", "队列为空，先搜索歌曲吧。");
         }
         return;
       }
-      if (lowerText === "下一首") { playNext(); appendMessage("agent", "已切换到下一首。"); return; }
-      if (lowerText === "上一首") { playPrev(); appendMessage("agent", "已切换到上一首。"); return; }
+      if (/下一首|next|跳过|切歌|换一首/.test(lowerText)) {
+        playNext(); appendMessage("agent", "已切换到下一首。"); return;
+      }
+      if (/上一首|prev|previous|上一曲/.test(lowerText)) {
+        playPrev(); appendMessage("agent", "已切换到上一首。"); return;
+      }
+      if (/音量/.test(lowerText)) {
+        const numMatch = lowerText.match(/(\d+)/);
+        if (numMatch) {
+          volume = Math.max(0, Math.min(100, parseInt(numMatch[1])));
+          audio.volume = volume / 100;
+          document.getElementById("volumeFill").style.width = volume + "%";
+          document.getElementById("volumeValue").textContent = volume;
+          appendMessage("agent", `音量已设为 ${volume}%`);
+        } else if (/大|高|响|up/.test(lowerText)) {
+          volume = Math.min(100, volume + 20);
+          audio.volume = volume / 100;
+          document.getElementById("volumeFill").style.width = volume + "%";
+          document.getElementById("volumeValue").textContent = volume;
+          appendMessage("agent", `音量调大到 ${volume}%`);
+        } else if (/小|低|轻|down/.test(lowerText)) {
+          volume = Math.max(0, volume - 20);
+          audio.volume = volume / 100;
+          document.getElementById("volumeFill").style.width = volume + "%";
+          document.getElementById("volumeValue").textContent = volume;
+          appendMessage("agent", `音量调小到 ${volume}%`);
+        } else {
+          appendMessage("agent", `当前音量 ${volume}%。可以说"音量50"或"音量大一点"`);
+        }
+        return;
+      }
+      if (/循环|loop|repeat|单曲/.test(lowerText)) {
+        if (/单曲|single|one/.test(lowerText)) {
+          playMode = "single_loop"; modeIndex = 1;
+        } else if (/随机|shuffle|random/.test(lowerText)) {
+          playMode = "shuffle"; modeIndex = 2;
+        } else {
+          playMode = "list_loop"; modeIndex = 0;
+        }
+        const m = modes[modeIndex];
+        document.getElementById("modeBtn").textContent = m.icon;
+        document.getElementById("modeBtn").title = m.label;
+        document.getElementById("modeBtn").classList.toggle("on", modeIndex !== 0);
+        document.getElementById("modeDisplay").textContent = m.label;
+        appendMessage("agent", `已切换为${m.label}。`);
+        return;
+      }
+      if (/正在播|现在播|什么歌|current|now/.test(lowerText)) {
+        if (currentSong) {
+          appendMessage("agent", `正在播放：${currentSong.title} - ${currentSong.artist}`);
+        } else {
+          appendMessage("agent", "当前没有在播放歌曲。");
+        }
+        return;
+      }
+      if (/帮助|help|命令|功能/.test(lowerText)) {
+        appendMessage("agent", "可用指令：<br>• 播放/暂停/下一首/上一首<br>• 音量50 / 音量大一点<br>• 循环/单曲循环/随机<br>• 正在播放什么<br>• 或直接输入歌曲名/歌手名搜索");
+        return;
+      }
 
       try {
         const res = await fetch(`${API}/search`, {
@@ -1497,8 +1682,7 @@
       const input = document.getElementById("queueFilter");
       const val = input.value.trim();
       if (!val) { queueFilterText = ""; updateQueueUI(); return; }
-      if (queue.length > 0) { queueFilterText = val; updateQueueUI(); }
-      else { handleAgentCommand(val); }
+      handleAgentCommand(val);
     });
 
     document.getElementById("queueFilter").addEventListener("input", (e) => {
@@ -1527,12 +1711,41 @@
       if (window.pywebview && window.pywebview.api) window.pywebview.api.toggle_fullscreen();
     });
 
+    (function() {
+      const appbar = document.querySelector(".appbar");
+      let dragging = false, startX = 0, startY = 0;
+      appbar.addEventListener("mousedown", (e) => {
+        if (e.target.closest("button") || e.target.closest("input")) return;
+        if (!window.pywebview || !window.pywebview.api) return;
+        dragging = true;
+        startX = e.screenX;
+        startY = e.screenY;
+        e.preventDefault();
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const dx = e.screenX - startX;
+        const dy = e.screenY - startY;
+        startX = e.screenX;
+        startY = e.screenY;
+        if (window.pywebview && window.pywebview.api && window.pywebview.api._drag_delta) {
+          window.pywebview.api._drag_delta(dx, dy);
+        }
+      });
+      document.addEventListener("mouseup", () => { dragging = false; });
+    })();
+
     function showContextMenu(x, y, idx) {
       let menu = document.getElementById("ctxMenu");
       if (menu) menu.remove();
       menu = document.createElement("div");
       menu.id = "ctxMenu";
-      menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:200;background:var(--surface-mid);border:1px solid var(--outline-variant);border-radius:4px;padding:4px 0;min-width:120px;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.5);`;
+      const menuW = 140, menuH = 70;
+      const maxX = window.innerWidth - menuW;
+      const maxY = window.innerHeight - menuH;
+      const px = Math.min(x, maxX);
+      const py = Math.min(y, maxY);
+      menu.style.cssText = `position:fixed;left:${px}px;top:${py}px;z-index:200;background:var(--surface-mid);border:1px solid var(--outline-variant);border-radius:4px;padding:4px 0;min-width:120px;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.5);`;
       const items = [
         { label: "▶ 播放", action: () => playQueueItem(idx) },
         { label: "✕ 从队列移除", action: () => { queue.splice(idx, 1); if (queueIndex === idx) { audio.pause(); queueIndex = -1; } else if (queueIndex > idx) { queueIndex--; } updateQueueUI(); showToast("已移除"); } },
@@ -1623,10 +1836,20 @@
     }
 
     function updateSystemStatus() {
-      const mem = (Math.random() * 4 + 10).toFixed(1);
-      const cpu = Math.floor(Math.random() * 15 + 3);
-      document.getElementById("statusMem").textContent = `MEM: ${mem}GB / 32GB`;
-      document.getElementById("statusCpu").textContent = `CPU_LOAD: ${cpu}%`;
+      fetch(`${API}/system_info`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.code === 200 && data.mem_total > 0) {
+            document.getElementById("statusMem").textContent = `MEM: ${data.mem_used}GB / ${data.mem_total}GB`;
+            document.getElementById("statusCpu").textContent = `CPU_LOAD: ${data.cpu_pct}%`;
+          } else {
+            const mem = (Math.random() * 4 + 10).toFixed(1);
+            const cpu = Math.floor(Math.random() * 15 + 3);
+            document.getElementById("statusMem").textContent = `MEM: ${mem}GB / 32GB`;
+            document.getElementById("statusCpu").textContent = `CPU_LOAD: ${cpu}%`;
+          }
+        })
+        .catch(() => {});
     }
 
     function mainLoop() {
@@ -1644,6 +1867,8 @@
     startDanmaku();
     mainLoop();
     loadTopSongs();
+
+    window.addEventListener("resize", () => { resizeSpecCanvas(); });
   </script>
 </body>
 </html>

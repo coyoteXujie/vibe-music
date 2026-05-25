@@ -11,11 +11,11 @@ echo   VibeMusic - Windows Build Script
 echo ============================================
 echo.
 
-echo [1/4] Cleaning previous build...
+echo [1/3] Cleaning previous build...
 if exist "%PROJECT_DIR%dist" rmdir /s /q "%PROJECT_DIR%dist"
 if exist "%PROJECT_DIR%build" rmdir /s /q "%PROJECT_DIR%build"
 
-echo [2/4] Running PyInstaller...
+echo [2/3] Running PyInstaller...
 cd /d "%PROJECT_DIR%"
 "%PYINSTALLER%" VibeMusic.spec --noconfirm
 if errorlevel 1 (
@@ -24,17 +24,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [3/4] Copying ncm-api...
-xcopy "%PROJECT_DIR%ncm-api" "%DIST_DIR%\ncm-api\" /e /i /y /q
-
-echo [4/4] Installing ncm-api dependencies...
-cd /d "%DIST_DIR%\ncm-api"
-call npm install --production 2>nul
-if errorlevel 1 (
-    echo [WARN] npm install failed. NCM API may not work.
-    echo        You can manually run: cd ncm-api ^&^& npm install
+echo [3/3] Verifying output...
+if not exist "%DIST_DIR%\VibeMusic.exe" (
+    echo [ERROR] VibeMusic.exe not found!
+    pause
+    exit /b 1
 )
-cd /d "%PROJECT_DIR%"
 
 echo.
 echo ============================================
@@ -43,8 +38,7 @@ echo   Output: %DIST_DIR%
 echo   Run: %DIST_DIR%\VibeMusic.exe
 echo ============================================
 echo.
-echo NOTE: This application requires Node.js
-echo       to be installed for music search to work.
+echo NOTE: For QQ/Kuwo music source, Node.js is required.
 echo       Download: https://nodejs.org/
 echo.
 pause
