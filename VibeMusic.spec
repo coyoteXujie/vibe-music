@@ -22,6 +22,8 @@ a = Analysis(
     datas=[
         (os.path.join(BASE, 'ui', 'index.html'), 'ui'),
         (os.path.join(BASE, 'ui', 'fonts'), 'ui/fonts'),
+        (os.path.join(BASE, 'ui', 'icon.svg'), 'ui'),
+        (os.path.join(BASE, 'ui', 'icon-512.svg'), 'ui'),
         (os.path.join(BASE, 'musicapi'), 'musicapi'),
     ],
     hiddenimports=[
